@@ -66,6 +66,15 @@ def current_user(token: str = Depends(oauth2_scheme)):
         raise exception
     return username
 
+def extract_text(message):
+    if isinstance(message.content, str):
+        return message.content
+    text = ""
+    for block in message.content:
+        if isinstance(block, dict) and block.get("type") == "text":
+            text += block.get("text", "")
+    return text
+
 # il body che il client manda. thread_id: str = "default" ha un valore di default, quindi il client può anche non specificarlo e useranno tutti la stessa conversazione.
 class ChatMessage(BaseModel):
     message: str
@@ -81,7 +90,7 @@ def chat(data: ChatMessage, username: str = Depends(current_user)):
         config
     )
     # La risposta restituita è solo il testo (risultato["messages"][-1].content), non l'intero oggetto messaggio
-    return {"answer": result["messages"][-1].content}
+    return {"reply": extract_text(result["messages"][-1])}
 
 
 @app.post("/chat/stream")

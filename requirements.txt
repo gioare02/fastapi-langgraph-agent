@@ -8,3 +8,5 @@ langgraph-checkpoint-sqlite
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
+streamlit requests
+streamlit
