@@ -1,5 +1,6 @@
 from langgraph.graph import StateGraph, START, END, MessagesState
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
 
@@ -16,7 +17,10 @@ grafo.add_node("chatbot", chatbot)
 grafo.add_edge(START, "chatbot")
 grafo.add_edge("chatbot", END)
 
-memoria = MemorySaver()
+# crea (o apre, se esiste già) il file del database.
+conn = sqlite3.connect("conversazioni.db", check_same_thread=False)
+# passi la connessione al database a LangGraph, che da qui in poi gestisce da solo la struttura interna (crea le tabelle necessarie per salvare stato e messaggi).
+memoria = SqliteSaver(conn)
 app = grafo.compile(checkpointer=memoria)
 
 if __name__ == "__main__":

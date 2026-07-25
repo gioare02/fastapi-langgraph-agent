@@ -4,3 +4,4 @@ sqlmodel
 langgraph
 langchain-anthropic
 python-dotenv
+langgraph-checkpoint-sqlite

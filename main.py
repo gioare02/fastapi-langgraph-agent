@@ -1,7 +1,8 @@
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from agent import app as agent
+from fastapi.responses import StreamingResponse
+
 
 app = FastAPI()
 
@@ -23,11 +24,11 @@ def chat(dati: MessaggioChat):
 
 
 @app.post("/chat/stream")
-async def chat_stream(dati: MessaggioChat):
+def chat_stream(dati: MessaggioChat):
     config = {"configurable": {"thread_id": dati.thread_id}}
 
-    async def genera():
-        async for chunk, _metadata in agent.astream(
+    def genera():
+        for chunk, metadata in agent.stream(
             {"messages": [{"role": "user", "content": dati.messaggio}]},
             config,
             stream_mode="messages"
@@ -76,4 +77,31 @@ return {"risposta": risultato["messages"][-1].content}
     Il tutto viene incapsulato in un dizionario {"risposta": ...}, che FastAPI converte in JSON come risposta finale al client: es. {"risposta": "ciao, come posso aiutarti?"}.
 
 In sintesi: la funzione prende il messaggio HTTP in entrata, lo trasforma nel formato che LangGraph si aspetta, lo fa girare nel grafo (che richiama Claude e gestisce la memoria), e restituisce indietro solo il testo della risposta, pulito, come JSON.
+'''
+
+
+
+'''
+StreamingResponse: una classe di FastAPI, diversa dal solito return {...}. 
+Invece di aspettare che la funzione finisca e mandare tutto insieme, manda pezzi di risposta man mano che sono pronti, mentre il client li riceve in tempo reale.
+
+def genera(): — questa è una funzione "generatore". La riconosci perché usa yield invece di return. 
+La differenza chiave: return esce dalla funzione consegnando un valore finale; yield "mette in pausa" la funzione, consegna un pezzo di dato, 
+e resta pronta a riprendere da dove si era fermata alla chiamata successiva. È così che riesci a mandare la risposta a pezzi invece che tutta insieme.
+
+agent.stream(...) invece di agent.invoke(...): 
+    .invoke() esegue tutto il grafo e ti dà il risultato finale in un colpo solo (quello che avevi già). 
+    .stream() invece ti fa "ascoltare" cosa succede mentre il grafo lavora, pezzo per pezzo.
+
+stream_mode="messages": dice a LangGraph esattamente che tipo di pezzi vuoi vedere: i token del messaggio via via che il modello li genera 
+(come vedi scrivere ChatGPT in tempo reale), invece che l'intero messaggio finito o gli aggiornamenti di stato del grafo.
+
+for chunk, metadata in ...: ogni "pezzo" che arriva è in realtà una coppia: chunk (un frammento di messaggio, tipo poche parole o anche solo una) 
+e metadata (informazioni extra tipo quale nodo del grafo l'ha generato — qui non ci serve, ma va comunque ricevuto per come è strutturato il dato).
+
+if chunk.content: — alcuni frammenti possono essere vuoti (es. metadati senza testo vero), quindi controlli che ci sia davvero del testo prima di mandarlo.
+
+yield chunk.content: manda quel pezzo di testo al client, subito, senza aspettare il resto della risposta.
+
+media_type="text/plain": dici al client che tipo di contenuto sta ricevendo (testo semplice, pezzo per pezzo).
 '''
