@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 from sqlmodel import SQLModel, Field, Session, create_engine, select
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,12 @@ ALGORITHM = "HS256"
 EXPIRATION_MINUTES = 60
 
 # l'oggetto che sa come fare hash e verifica delle password (con l'algoritmo bcrypt, standard del settore).
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def verify_password(password: str, password_hash: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+
 # dice a FastAPI "gli endpoint protetti si aspettano un token, ottenuto facendo login su /login" — serve anche per far comparire il tasto "Authorize" nella pagina /docs.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -50,7 +55,7 @@ def registra(data: RecordUser):
         exists = session.exec(select(User).where(User.username == data.username)).first()
         if exists:
             raise HTTPException(status_code=400, detail="Username already in use")
-        new = User(username=data.username, password_hash=pwd_context.hash(data.password))
+        new = User(username=data.username, password_hash=hash_password(data.password))
         session.add(new)
         session.commit()
         return {"message": "User created"}
@@ -59,7 +64,7 @@ def registra(data: RecordUser):
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     with Session(users_engine) as session:
         user = session.exec(select(User).where(User.username == form_data.username)).first()
-        if not user or not pwd_context.verify(form_data.password, user.password_hash):
+        if not user or not verify_password(form_data.password, user.password_hash):
             raise HTTPException(status_code=401, detail="Credenziali non valide")
         expiration = datetime.utcnow() + timedelta(minutes=EXPIRATION_MINUTES)
         token = jwt.encode({"sub": user.username, "exp": expiration}, SECRET_KEY, algorithm=ALGORITHM)

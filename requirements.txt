@@ -1,11 +1,11 @@
 fastapi
+bcrypt
 uvicorn
 sqlmodel
 langgraph
 langchain-anthropic
 python-dotenv
 langgraph-checkpoint-sqlite
-passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
 streamlit 
