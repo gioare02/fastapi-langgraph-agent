@@ -1,0 +1,18 @@
+# Segreti - MAI committare
+.env
+ 
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+ 
+# Database locale
+*.db
+*.sqlite3
+ 
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
