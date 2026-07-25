@@ -2,34 +2,95 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from agent import app as agent
 from fastapi.responses import StreamingResponse
+import os
+from datetime import datetime, timedelta
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from sqlmodel import SQLModel, Field, Session, create_engine, select
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+EXPIRATION_MINUTES = 60
+
+# l'oggetto che sa come fare hash e verifica delle password (con l'algoritmo bcrypt, standard del settore).
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# dice a FastAPI "gli endpoint protetti si aspettano un token, ottenuto facendo login su /login" — serve anche per far comparire il tasto "Authorize" nella pagina /docs.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+class User(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    username: str = Field(unique=True, index=True)
+    password_hash: str
+
+users_engine = create_engine("sqlite:///users.db")
+SQLModel.metadata.create_all(users_engine)
+
+class RecordUser(BaseModel):
+    username: str
+    password: str
 
 
 app = FastAPI()
 
+@app.post("/register")
+def registra(data: RecordUser):
+    with Session(users_engine) as session:
+        exists = session.exec(select(User).where(User.username == data.username)).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="Username already in use")
+        new = User(username=data.username, password_hash=pwd_context.hash(data.password))
+        session.add(new)
+        session.commit()
+        return {"message": "User created"}
+    
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    with Session(users_engine) as session:
+        user = session.exec(select(User).where(User.username == form_data.username)).first()
+        if not user or not pwd_context.verify(form_data.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Credenziali non valide")
+        expiration = datetime.utcnow() + timedelta(minutes=EXPIRATION_MINUTES)
+        token = jwt.encode({"sub": user.username, "exp": expiration}, SECRET_KEY, algorithm=ALGORITHM)
+        return {"access_token": token, "token_type": "bearer"}
+    
+def current_user(token: str = Depends(oauth2_scheme)):
+    exception = HTTPException(status_code=401, detail="Token not valid")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if username is None:
+            raise exception
+    except JWTError:
+        raise exception
+    return username
+
 # il body che il client manda. thread_id: str = "default" ha un valore di default, quindi il client può anche non specificarlo e useranno tutti la stessa conversazione.
-class MessaggioChat(BaseModel):
-    messaggio: str
+class ChatMessage(BaseModel):
+    message: str
     thread_id: str = "default"
 
 @app.post("/chat")
-def chat(dati: MessaggioChat):
-    config = {"configurable": {"thread_id": dati.thread_id}}
+def chat(data: ChatMessage, username: str = Depends(current_user)):
+    thread_id = f"{username}-{data.thread_id}"
+    config = {"configurable": {"thread_id": thread_id}}
     # ora il messaggio arriva da una richiesta HTTP invece che da input().
-    risultato = agent.invoke(
-        {"messages": [{"role": "user", "content": dati.messaggio}]},
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": data.message}]},
         config
     )
     # La risposta restituita è solo il testo (risultato["messages"][-1].content), non l'intero oggetto messaggio
-    return {"risposta": risultato["messages"][-1].content}
+    return {"answer": result["messages"][-1].content}
 
 
 @app.post("/chat/stream")
-def chat_stream(dati: MessaggioChat):
-    config = {"configurable": {"thread_id": dati.thread_id}}
+def chat_stream(data: ChatMessage):
+    config = {"configurable": {"thread_id": data.thread_id}}
 
     def genera():
         for chunk, metadata in agent.stream(
-            {"messages": [{"role": "user", "content": dati.messaggio}]},
+            {"messages": [{"role": "user", "content": data.message}]},
             config,
             stream_mode="messages"
         ):
@@ -60,13 +121,13 @@ risultato = agent.invoke(
 )
     Qui chiami davvero l'agente (il grafo compilato con LangGraph, importato all'inizio del file).
     - Primo argomento: lo stato iniziale che dai in pasto al grafo. È un dizionario con la chiave "messages", che contiene una lista di messaggi 
-        — qui ce n'è uno solo, quello nuovo dell'utente, con "role": "user" (per dire "questo l'ha scritto la persona, non il bot") 
+        — qui ce n'è uno solo, quello nuovo dell'User, con "role": "user" (per dire "questo l'ha scritto la persona, non il bot") 
           e "content" che è il testo vero (dati.messaggio, cioè quello arrivato dalla richiesta HTTP).
     - Secondo argomento: il config di prima, che dice al grafo quale conversazione/memoria usare.
     .invoke(...): esegue il grafo una volta, dall'inizio (START) alla fine (END), passando dal nodo chatbot che avevi definito in agent.py 
     — quello che chiama davvero il modello Claude.
     Il risultato (risultato) è lo stato finale del grafo dopo l'esecuzione: di nuovo un dizionario con "messages", 
-    ma ora la lista contiene sia il messaggio dell'utente sia (grazie alla memoria) tutti i messaggi precedenti di quella conversazione, 
+    ma ora la lista contiene sia il messaggio dell'User sia (grazie alla memoria) tutti i messaggi precedenti di quella conversazione, 
     più la nuova risposta del bot aggiunta in coda.
 
 return {"risposta": risultato["messages"][-1].content}
