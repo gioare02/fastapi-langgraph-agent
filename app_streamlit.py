@@ -1,7 +1,10 @@
 import streamlit as st
 import requests
 
-API_URL = "http://127.0.0.1:8000"
+try:
+    API_URL = st.secrets["API_URL"]
+except Exception:
+    API_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="My Assistant", page_icon="🤖")
 

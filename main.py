@@ -9,6 +9,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from sqlmodel import SQLModel, Field, Session, create_engine, select
+from fastapi.middleware.cors import CORSMiddleware
+
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -33,6 +35,14 @@ class RecordUser(BaseModel):
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/register")
 def registra(data: RecordUser):
