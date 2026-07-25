@@ -1,37 +1,71 @@
-# Progetto: Assistente conversazionale con FastAPI + LangGraph
+# AI Chat Assistant — FastAPI + LangGraph
 
-Progetto didattico per imparare FastAPI e LangGraph, costruito passo per passo.
+A conversational AI assistant with persistent memory and web search, exposed as an authenticated REST API with a dedicated chat interface.
 
-## Setup
+**Live demo:** [add Streamlit app link here] · **API:** [add Render link + `/docs` here]
 
-1. Crea un ambiente virtuale (consigliato):
+## Features
+
+- Conversations with memory: the agent remembers previous messages in the same session, even after a restart (persisted to a database)
+- Built-in web search: the agent can answer with up-to-date information, beyond its base knowledge
+- User authentication: registration and login with JWT tokens, each user only sees their own conversations
+- Real-time streaming responses
+- Dedicated chat UI, in addition to interactive API documentation
+
+## Tech stack
+
+- **Backend**: FastAPI, Pydantic
+- **Conversational agent**: LangGraph, Anthropic Claude (via `langchain-anthropic`), Claude's native web search
+- **Database**: SQLModel on SQLite (users and conversation history)
+- **Authentication**: OAuth2 + JWT, passwords hashed with bcrypt
+- **Frontend**: Streamlit
+- **Deployment**: Render (backend), Streamlit Community Cloud (frontend), with continuous deployment from GitHub
+
+## Architecture
+
+```
+User → Streamlit (UI) → authenticated HTTP requests → FastAPI
+                                                          ↓
+                                                    LangGraph agent
+                                                    (Claude + web search)
+                                                          ↓
+                                                    SQLite (users + conversation memory)
+```
+
+## Local setup
+
+1. Clone the repository and create a virtual environment:
    ```
    python3 -m venv venv
-   source venv/bin/activate   # su Windows: venv\Scripts\activate
+   source venv/bin/activate   # on Windows: venv\Scripts\activate
    ```
 
-2. Installa le dipendenze:
+2. Install dependencies:
    ```
    pip install -r requirements.txt
    ```
 
-3. Copia `.env.example` in `.env` e inserisci la tua chiave API:
+3. Copy `.env.example` to `.env` and fill in the keys:
    ```
    cp .env.example .env
    ```
-   Poi apri `.env` e incolla la chiave ottenuta da console.anthropic.com
+   You'll need an Anthropic API key (console.anthropic.com) and a `SECRET_KEY` of your choice for signing JWTs.
 
-## Struttura del progetto
+4. Start the backend and frontend (two separate terminals):
+   ```
+   uvicorn main:app --reload
+   streamlit run app_streamlit.py
+   ```
 
-- `agent.py` — logica dell'agente conversazionale costruita con LangGraph
-- `main.py` — API FastAPI che espone l'agente (fase successiva)
+## Project structure
 
-## Stato di avanzamento
+- `agent.py` — the conversational agent logic, built with LangGraph (persistent memory + web search)
+- `main.py` — FastAPI API: user registration/login, chat endpoints (including streaming), JWT authentication
+- `app_streamlit.py` — chat interface with built-in login
+- `requirements.txt`, `.env.example`, `.gitignore` — project configuration
 
-- [x] Fase 1: agente LangGraph di base, testato da terminale
-- [ ] Fase 2: esporlo con FastAPI
-- [ ] Fase 3: streaming delle risposte
-- [ ] Fase 4: persistenza conversazioni su database
-- [ ] Fase 5: autenticazione utenti
-- [ ] Fase 6: tool per l'agente
-- [ ] Fase 7: deploy
+## Possible future improvements
+
+- Additional custom tools for the agent (beyond web search)
+- Persistent Postgres database instead of SQLite
+- Automated tests
