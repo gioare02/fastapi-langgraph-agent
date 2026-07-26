@@ -101,20 +101,21 @@ def chat(data: ChatMessage, username: str = Depends(current_user)):
     config = {"configurable": {"thread_id": thread_id}}
     # ora il messaggio arriva da una richiesta HTTP invece che da input().
     result = agent.invoke(
-        {"messages": [{"role": "user", "content": data.message}]},
-        config
+    {"messages": [{"role": "user", "content": data.message}], "username": username},
+    config
     )
     # La risposta restituita è solo il testo (risultato["messages"][-1].content), non l'intero oggetto messaggio
     return {"reply": extract_text(result["messages"][-1])}
 
 
 @app.post("/chat/stream")
-def chat_stream(data: ChatMessage):
-    config = {"configurable": {"thread_id": data.thread_id}}
+def chat_stream(data: ChatMessage, username: str = Depends(current_user)):
+    thread_id = f"{username}-{data.thread_id}"
+    config = {"configurable": {"thread_id": thread_id}}
 
     def genera():
         for chunk, metadata in agent.stream(
-            {"messages": [{"role": "user", "content": data.message}]},
+            {"messages": [{"role": "user", "content": data.message}], "username": username},
             config,
             stream_mode="messages"
         ):

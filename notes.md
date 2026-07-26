@@ -120,3 +120,10 @@ Ora LangGraph costruisce il motore eseguibile. Puoi immaginarla come
           Sì            No
            │             ▼
            └──────────► END
+
+
+il grafo di LangGraph ha uno "stato" che viaggia lungo tutta la conversazione — finora conteneva solo i messaggi (messages). Al passo precedente abbiamo aggiunto un secondo cassetto a questo stato: username, che viene impostato una volta sola, quando l'utente fa login e manda il primo messaggio — non lo scrive Claude, lo scrive il codice in main.py, con dati certi (viene dal token JWT verificato, non da quello che qualcuno scrive in chat).
+
+InjectedState è il meccanismo che dice a un tool: "quando ti chiamano, non aspettarti che Claude ti dia l'username come argomento — vallo a prendere direttamente dallo stato del grafo, che è già lì, sicuro". Claude nemmeno "vede" che il tool ha bisogno di questa informazione — dal suo punto di vista, il tool ha solo gli argomenti normali (es. "descrizione del task"), lo username gli arriva "di nascosto", iniettato dal sistema.
+
+Quindi il flusso completo diventa: utente loggato scrive "aggiungi comprare il latte" → Claude chiama il tool con solo descrizione = "comprare il latte" → il tool, dietro le quinte, riceve anche lo username vero (iniettato) → salva nel database la riga giusta, associata alla persona giusta.
