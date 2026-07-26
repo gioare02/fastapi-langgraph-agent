@@ -10,3 +10,7 @@ python-jose[cryptography]
 python-multipart
 streamlit 
 requests
+chromadb 
+langchain-chroma 
+sentence-transformers 
+langchain-huggingface
