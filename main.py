@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from agent import app as agent
+from agent import vector_store, split_text
+from langchain_core.documents import Document
 from fastapi.responses import StreamingResponse
 import os
 from datetime import datetime, timedelta
@@ -37,6 +39,9 @@ SQLModel.metadata.create_all(users_engine)
 class RecordUser(BaseModel):
     username: str
     password: str
+
+class NoteUpload(BaseModel):
+    text: str
 
 
 app = FastAPI()
@@ -124,6 +129,12 @@ def chat_stream(data: ChatMessage, username: str = Depends(current_user)):
 
     return StreamingResponse(genera(), media_type="text/plain")
 
+@app.post("/notes/upload")
+def upload_note(data: NoteUpload, username: str = Depends(current_user)):
+    chunks = split_text(data.text)
+    documents = [Document(page_content=chunk, metadata={"username": username}) for chunk in chunks]
+    vector_store.add_documents(documents)
+    return {"message": f"{len(chunks)} chunks saved"}
 
 '''
 @app.post("/chat")
