@@ -50,6 +50,18 @@ if st.session_state.token is None:
 else:
     st.title(f"Hi, {st.session_state.username}")
 
+    with st.sidebar:
+        st.subheader("Upload a note (PDF)")
+        uploaded_file = st.file_uploader("Choose a PDF", type=["pdf"])
+        if uploaded_file and st.button("Upload"):
+            headers = {"Authorization": f"Bearer {st.session_state.token}"}
+            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+            response = requests.post(f"{API_URL}/notes/upload-pdf", files=files, headers=headers)
+            if response.status_code == 200:
+                st.success(response.json()["message"])
+            else:
+                st.error("Upload failed.")
+
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.write(message["text"])

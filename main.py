@@ -12,7 +12,9 @@ import bcrypt
 from jose import JWTError, jwt
 from sqlmodel import SQLModel, Field, Session, create_engine, select
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi import UploadFile, File
+import pypdf
+import io
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -109,6 +111,9 @@ def chat(data: ChatMessage, username: str = Depends(current_user)):
     {"messages": [{"role": "user", "content": data.message}], "username": username},
     config
     )
+    print(f"[CHAT DEBUG] route finale: {result.get('route')!r}", flush=True)
+    for m in result["messages"][-5:]:
+        print(f"[CHAT DEBUG] {type(m).__name__} tool_calls={getattr(m, 'tool_calls', None)} content={str(getattr(m, 'content', ''))[:200]!r}", flush=True)
     # La risposta restituita è solo il testo (risultato["messages"][-1].content), non l'intero oggetto messaggio
     return {"reply": extract_text(result["messages"][-1])}
 
@@ -135,6 +140,25 @@ def upload_note(data: NoteUpload, username: str = Depends(current_user)):
     documents = [Document(page_content=chunk, metadata={"username": username}) for chunk in chunks]
     vector_store.add_documents(documents)
     return {"message": f"{len(chunks)} chunks saved"}
+
+@app.post("/notes/upload-pdf")
+def upload_note_pdf(file: UploadFile = File(...), username: str = Depends(current_user)):
+    pdf_bytes = file.file.read()
+    reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+
+    chunks = split_text(text)
+    documents = [Document(page_content=chunk, metadata={"username": username}) for chunk in chunks]
+    vector_store.add_documents(documents)
+    return {"message": f"{len(chunks)} chunks saved from PDF"}
+
+@app.get("/debug/notes")
+def debug_notes(query: str, username: str = Depends(current_user)):
+    results = vector_store.similarity_search(query, k=4, filter={"username": username})
+    return {"count": len(results), "results": [r.page_content for r in results]}
+
 
 '''
 @app.post("/chat")

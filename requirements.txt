@@ -14,3 +14,4 @@ chromadb
 langchain-chroma 
 sentence-transformers 
 langchain-huggingface
+pypdf
